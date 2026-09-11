@@ -1,18 +1,24 @@
 # SanKlean
 
-A simple, clean alternative to creating Sankey diagrams without coding them or working with rigid templates and spreadsheets.
+A simple, clean way to visually track job and internship applications through a Sankey-style flow — without spreadsheets or code.
 
 ## What
 
-SanKlean is a free-form Sankey diagram builder inspired by the simplicity of whiteboard tools.
+SanKlean is a free-form visual tracker for job and internship applications.
 
-Create nodes, connect them, edit values, and visually track how quantities move through a process — without writing code or maintaining a separate spreadsheet.
+Create nodes, connect them, edit values, and see how applications move through stages such as:
+
+`Applications → Replies → Assessments → Interviews → Offers`
+
+Unanswered applications can also be represented naturally as the remaining flow.
+
+SanKlean can also be used to create general Sankey-style flow diagrams.
 
 ## How
 
-SanKlean is inspired by tools like Excalidraw.
+SanKlean is inspired by the free-form simplicity of tools like Excalidraw.
 
-Instead of filling out a predefined template, you can:
+Instead of working with a predefined template or a separate spreadsheet, you can:
 
 - Add nodes wherever you want
 - Connect nodes to represent flows
@@ -21,26 +27,29 @@ Instead of filling out a predefined template, you can:
 - Select and delete elements
 - Switch between light/dark themes and fonts
 
-The diagram is built directly on the canvas, so the visual representation and the data stay together.
+The diagram and its data stay together on the canvas.
 
 ## Why
 
-I built SanKlean because I wanted a simpler way to create Sankey diagrams.
+I built SanKlean because I wanted a simpler way to keep track of my job and internship applications.
 
-While working on my own application/internship tracking, I wanted to visualize things like:
+I apply to around 30–40 internships per week, and I prefer to apply and move on rather than constantly check individual applications. I still want to know how many applications I have made and how they are progressing.
 
-`Applications → Replies → Assessments → Interviews → Offers`
+The tools I found generally required coding, rigid templates, or spreadsheet-style data entry alongside the diagram.
 
-and understand where applications were moving forward, getting rejected, or being ghosted.
+SanKlean is my attempt at making that process more direct and visual.
 
-Most Sankey tools I found required either writing code, working with a predefined template, or editing data in a spreadsheet alongside the diagram.
-
-SanKlean is an attempt at making that process more direct.
-
-If you find a better way to solve this problem, I'd genuinely like to know. Suggestions and criticism are welcome.
+If you know of a better way to solve this problem, suggestions and criticism are welcome.
 
 ## Setup
 
 ```bash
 npm install
 npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
