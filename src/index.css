@@ -70,12 +70,35 @@ html, body, #root {
   height: 100%;
 }
 
+html, body {
+  /* Canvas app: the page itself never scrolls — panning/zooming belongs
+     to the canvas. Prevents pull-to-refresh / rubber-banding from stealing
+     touch gestures mid-drag on mobile browsers. */
+  overscroll-behavior: none;
+}
+
+body {
+  overflow: hidden;
+}
+
+button, select {
+  /* Remove the ~300ms double-tap delay on touch browsers without
+     affecting desktop click behavior. */
+  touch-action: manipulation;
+}
+
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* Dynamic viewport: 100vh includes the mobile URL bar and overflows on
+     iOS Safari / Chrome Android. svh/dvh track the visible area instead.
+     Order matters — unsupported values are ignored, keeping the fallback. */
+  height: 100svh;
+  height: 100dvh;
   background: var(--bg);
   color: var(--text);
+  overflow: hidden;
 }
 
 /* Minimal top bar — brand + diagram name only. Canvas keeps the focus. */
@@ -84,13 +107,17 @@ html, body, #root {
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right: max(14px, env(safe-area-inset-right));
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   z-index: 10;
   min-height: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
 .brand-logo {
   width: 28px; height: 28px;
   display: block;
@@ -106,10 +133,13 @@ html, body, #root {
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 5px 9px;
-  min-width: 100px;
+  min-width: 80px;
   max-width: 240px;
+  flex: 1 1 auto;
+  width: auto;
   background: transparent;
   font-family: inherit;
+  text-overflow: ellipsis;
 }
 .diagram-name:hover { border-color: var(--border); }
 .diagram-name:focus { outline: none; border-color: var(--accent); background: var(--panel); color: var(--text); }
@@ -117,8 +147,8 @@ html, body, #root {
 /* Floating Excalidraw-style left tool dock. Compact, intentional, unobtrusive. */
 .dock {
   position: fixed;
-  left: 12px;
-  top: 60px;
+  left: max(12px, env(safe-area-inset-left));
+  top: max(60px, calc(env(safe-area-inset-top) + 60px));
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -130,6 +160,13 @@ html, body, #root {
   padding: 6px;
   width: max-content;
   max-width: min(200px, calc(100vw - 24px));
+  /* On short viewports (landscape phones, small laptops) the open panel
+     scrolls internally instead of extending past the bottom edge. */
+  max-height: calc(100vh - 96px);
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .dock.open { width: 176px; }
 .dock-toggle {
@@ -254,12 +291,68 @@ html, body, #root {
 .dock-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 @media (max-width: 640px) {
-  .dock { left: 8px; top: 56px; }
+  .topbar { gap: 8px; }
+  .dock { left: max(8px, env(safe-area-inset-left)); top: max(56px, calc(env(safe-area-inset-top) + 56px)); }
   .dock.open { width: 152px; }
   .dock-btn { padding: 6px 7px; font-size: 12.5px; }
   .dock-help::after { max-width: 150px; }
-  .diagram-name { max-width: 140px; min-width: 80px; }
+  .diagram-name { max-width: 140px; min-width: 60px; }
   .brand-name { font-size: 13px; }
+}
+
+/* Small phones (~320px–375px): tighter chrome, keep every control on-screen. */
+@media (max-width: 480px) {
+  .topbar { padding: 6px 10px; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+  .brand { gap: 8px; }
+  .brand-logo { width: 24px; height: 24px; }
+  .diagram-name { padding: 4px 7px; max-width: 120px; }
+  .dock-toggle { width: 36px; height: 36px; }
+  .dock.open { width: 148px; }
+  /* 16px inputs stop iOS Safari auto-zooming (and reflowing) on focus. */
+  .diagram-name,
+  .dock-select,
+  .sankey-label-input,
+  .sankey-value-input,
+  .edge-value-input {
+    font-size: 16px;
+  }
+}
+
+/* Short landscape viewports (phones rotated, small laptops): the open dock
+   and centered cards must fit vertically without covering the canvas. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .dock { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .onboarding { padding: 16px 20px; }
+  .onboarding ol { display: none; }
+}
+
+/* Tablets (portrait): slightly roomier dock, diagram name breathes. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .dock.open { width: 184px; }
+  .diagram-name { max-width: 300px; }
+}
+
+/* Large desktop / ultrawide: fluid canvas needs no changes — the dock and
+   cards keep their compact sizes so the whiteboard stays primary. */
+
+/* Coarse pointers (touch-first devices): no hover exists, so every control
+   gets a reliable tap target. Desktop sizing above is untouched. */
+@media (hover: none), (pointer: coarse) {
+  .dock-toggle { width: 44px; height: 44px; }
+  .dock-btn { min-height: 40px; padding: 9px 10px; }
+  .dock-select { min-height: 40px; padding: 9px 8px; }
+  .btn { min-height: 40px; padding: 9px 14px; }
+  .node-toolbar button { min-height: 36px; padding: 8px 14px; }
+  .edge-delete-btn { width: 32px; height: 32px; }
+  .edge-reset-btn { min-width: 32px; min-height: 32px; }
+  .help-fab { width: 44px; height: 44px; }
+  .help-close { min-width: 40px; min-height: 40px; }
+  /* Touch has no hover: a tapped (selected / focused) node must still
+     reveal its connection handles. Resting state stays clean. */
+  .sankey-node.selected .sankey-handle,
+  .sankey-node:focus-within .sankey-handle {
+    opacity: 1;
+  }
 }
 
 .btn {
@@ -302,9 +395,38 @@ html, body, #root {
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  /* Gestures inside the canvas belong to pan / node-drag / marquee — never
+     to browser page scroll or pull-to-refresh. Inputs opt back out below. */
+  overscroll-behavior: contain;
   /* Lightweight selection marquee in the accent color */
   --xy-selection-background-color: rgba(99, 102, 241, 0.08);
   --xy-selection-border: 1px solid var(--accent);
+}
+
+/* React Flow's pane owns panning: single-finger drag pans, pinch zooms.
+   `touch-action: none` hands the full gesture stream to it so the browser
+   never scrolls mid-pan on touch devices. */
+.canvas-wrap .react-flow__pane {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+.canvas-wrap input,
+.canvas-wrap select,
+.canvas-wrap textarea {
+  touch-action: manipulation;
+}
+
+/* React Flow zoom controls keep a usable tap target on touch devices. */
+.react-flow__controls-button {
+  touch-action: manipulation;
+}
+@media (hover: none), (pointer: coarse) {
+  .react-flow__controls-button {
+    width: 36px !important;
+    height: 36px !important;
+  }
 }
 
 /* Sankey node: narrow bar + floating label. No cards, no shadows. */
@@ -333,6 +455,8 @@ html, body, #root {
   height: 52px;
   border-radius: 3px;
   cursor: grab;
+  /* Node drags own the touch stream so the page never scrolls mid-drag. */
+  touch-action: none;
 }
 .sankey-bar:active { cursor: grabbing; }
 .sankey-node.selected .sankey-bar {
@@ -387,6 +511,13 @@ html, body, #root {
   border-radius: 6px;
   padding: 1px 4px;
   margin-left: -4px;
+  /* Single-line Sankey look: long names truncate with an ellipsis instead
+     of pushing the canvas (or the page) into horizontal overflow. The full
+     name stays in the DOM and remains editable in place. */
+  display: block;
+  max-width: min(220px, 48vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sankey-label:hover { background: var(--label-hover); }
 .sankey-value {
@@ -399,6 +530,10 @@ html, body, #root {
   padding: 0 4px;
   margin-left: -4px;
   margin-top: 1px;
+  display: block;
+  max-width: min(220px, 48vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sankey-node.selected .sankey-label,
 .sankey-node.selected .sankey-value {
@@ -416,17 +551,20 @@ html, body, #root {
 }
 .sankey-label-input {
   width: 150px;
+  max-width: min(150px, 52vw);
   font-size: 14px;
   font-weight: 600;
 }
 .sankey-value-input {
   width: 90px;
+  max-width: min(90px, 40vw);
   font-size: 13px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 /* Handles sit on the bar edges but stay invisible at rest */
 .sankey-handle {
+  position: relative;
   width: 10px !important;
   height: 10px !important;
   background: var(--accent) !important;
@@ -434,7 +572,15 @@ html, body, #root {
   opacity: 0;
   transition: opacity 120ms ease;
 }
+/* Invisible expanded tap target: the visible dot stays 10px while touch
+   gets ~34px to hit. Keyboard focus also reveals handles (no hover needed). */
+.sankey-handle::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
 .sankey-node:hover .sankey-handle,
+.sankey-node:focus-within .sankey-handle,
 .sankey-node.selected .sankey-handle,
 .react-flow__node.connecting .sankey-handle {
   opacity: 1;
@@ -452,6 +598,10 @@ html, body, #root {
   padding: 3px;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
   white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .node-toolbar button {
   border: none;
@@ -477,6 +627,10 @@ html, body, #root {
   filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.3));
 }
 .flow-control-point:hover { fill: var(--accent); }
+/* The visible dot ignores pointer events (its wider invisible sibling owns
+   the hit area), so hover feedback is driven from the parent group. Scoped
+   to flow edges so no other SVG in the app is affected. */
+.react-flow__edge g:hover > .flow-control-point { fill: var(--accent); }
 .flow-control-point:active { cursor: grabbing; }
 
 /* Floating contextual toolbar for the selected connection */
@@ -491,6 +645,7 @@ html, body, #root {
   border-radius: 999px;
   padding: 2px 4px 2px 10px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+  max-width: calc(100vw - 32px);
 }
 .edge-value {
   border: none;
@@ -506,6 +661,7 @@ html, body, #root {
 .edge-value:hover { background: var(--hover); }
 .edge-value-input {
   width: 56px;
+  max-width: min(56px, 30vw);
   font-size: 12px;
   font-weight: 700;
   text-align: center;
@@ -550,6 +706,11 @@ html, body, #root {
   background: rgba(15, 23, 42, 0.25);
   display: grid;
   place-items: center;
+  padding: 16px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
   z-index: 30;
 }
 .confirm-card {
@@ -559,16 +720,21 @@ html, body, #root {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
   padding: 16px 18px;
   width: 300px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .confirm-card h3 { margin: 0 0 6px; font-size: 14px; }
 .confirm-card p { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
-.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
 /* Unobtrusive help: floating ? button + dismissible card */
 .help-fab {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
   width: 32px;
   height: 32px;
   border-radius: 999px;
@@ -584,9 +750,14 @@ html, body, #root {
 .help-fab:hover { color: var(--accent-dark); border-color: var(--accent); }
 .help-card {
   position: fixed;
-  right: 16px;
-  bottom: 56px;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(56px, calc(env(safe-area-inset-bottom) + 56px));
   width: 260px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 140px);
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -631,7 +802,12 @@ html, body, #root {
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
   padding: 24px 28px;
+  width: calc(100% - 32px);
   max-width: 380px;
+  max-height: calc(100vh - 140px);
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   text-align: left;
   z-index: 5;
 }
@@ -646,11 +822,16 @@ html, body, #root {
   inset: 0;
   margin: auto;
   height: fit-content;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
   padding: 24px 28px;
+  width: calc(100% - 32px);
   max-width: 360px;
   text-align: left;
 }

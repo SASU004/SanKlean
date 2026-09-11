@@ -17,6 +17,7 @@ try {
   const font =
     rawFont === 'geist' ? 'grotesk' : rawFont === 'system' ? 'inter' : rawFont;
   const systemDark =
+    typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches;
   const dark = theme === 'dark' || (theme !== 'light' && systemDark);

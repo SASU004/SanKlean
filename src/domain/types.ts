@@ -1,5 +1,5 @@
 /**
- * Sanklean domain model.
+ * SanKlean domain model.
  *
  * Deliberately independent from any canvas library (React Flow, etc.).
  * The domain represents an arbitrary directed graph — NOT a tree, NOT
@@ -125,8 +125,13 @@ export function autoColorForId(id: string): string {
 }
 
 export function uid(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
+  // randomUUID exists only in secure contexts (and older browsers lack it
+  // entirely) — check the function itself, not just the crypto object.
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof (crypto as { randomUUID?: unknown }).randomUUID === 'function'
+  ) {
+    return (crypto as { randomUUID: () => string }).randomUUID();
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

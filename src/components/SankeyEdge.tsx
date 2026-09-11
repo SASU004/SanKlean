@@ -67,12 +67,19 @@ export default function SankeyEdge({
   // Control-point dragging: pointer capture keeps the move stream on the
   // handle; each move writes absolute canvas coords to the connection,
   // which re-renders the ribbon live and autosaves via persist.
+  // setPointerCapture can throw (e.g. a released/foreign pointerId in some
+  // browsers), so capture is best-effort — dragging still works via the
+  // move stream without it.
   const draggingHandle = useRef<0 | 1 | null>(null);
 
   const onControlDown = (e: React.PointerEvent<SVGCircleElement>, index: 0 | 1) => {
     e.stopPropagation();
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Capture unavailable — the pointermove handler still tracks the drag.
+    }
     draggingHandle.current = index;
   };
 
@@ -87,6 +94,14 @@ export default function SankeyEdge({
 
   const onControlUp = (e: React.PointerEvent<SVGCircleElement>) => {
     e.stopPropagation();
+    try {
+      // Guarded: hasPointerCapture itself may be absent on older browsers.
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Release failure is harmless — the drag state below still resets.
+    }
     draggingHandle.current = null;
   };
 
@@ -156,19 +171,34 @@ export default function SankeyEdge({
       {selected && (
         <g>
           {[c1, c2].map((p, i) => (
-            <circle
-              key={i}
-              cx={p.x}
-              cy={p.y}
-              r={7}
-              className="flow-control-point nodrag nopan"
-              onPointerDown={(e) => onControlDown(e, i === 0 ? 0 : 1)}
-              onPointerMove={onControlMove}
-              onPointerUp={onControlUp}
-              onPointerCancel={onControlUp}
-            >
-              <title>{i === 0 ? 'Drag to reshape (source side)' : 'Drag to reshape (target side)'}</title>
-            </circle>
+            // Two-layer handle: a wide invisible touch target (easy to grab
+            // on phones — the visible 7px dot alone is far below a reliable
+            // tap size) overlaid with the visible dot, which ignores pointer
+            // events so it never blocks its own hit area.
+            <g key={i}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={18}
+                fill="transparent"
+                className="nodrag nopan"
+                style={{ cursor: 'grab', touchAction: 'none' }}
+                onPointerDown={(e) => onControlDown(e, i === 0 ? 0 : 1)}
+                onPointerMove={onControlMove}
+                onPointerUp={onControlUp}
+                onPointerCancel={onControlUp}
+                onLostPointerCapture={onControlUp}
+              >
+                <title>{i === 0 ? 'Drag to reshape (source side)' : 'Drag to reshape (target side)'}</title>
+              </circle>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={7}
+                className="flow-control-point nodrag nopan"
+                style={{ pointerEvents: 'none' }}
+              />
+            </g>
           ))}
         </g>
       )}

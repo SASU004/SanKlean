@@ -94,8 +94,22 @@ function subscribeToSystemTheme(onChange: () => void): () => void {
   try {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    // Modern browsers: MediaQueryList.addEventListener. Safari < 14 only
+    // exposes the legacy addListener — support both so the theme follows
+    // the OS everywhere instead of silently sticking.
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    const legacy = mq as MediaQueryList & {
+      addListener?: (listener: () => void) => void;
+      removeListener?: (listener: () => void) => void;
+    };
+    if (typeof legacy.addListener === 'function') {
+      legacy.addListener(onChange);
+      return () => legacy.removeListener?.(onChange);
+    }
+    return () => {};
   } catch {
     return () => {};
   }

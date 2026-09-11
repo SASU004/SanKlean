@@ -20,10 +20,10 @@ export interface FlowCurveOptions {
    */
   curvature?: number;
   /**
-   * FUTURE SEAM (req: expose control points later): explicit control-handle
-   * overrides. When provided, they replace the auto-derived handles, so a
-   * future version can store per-edge handles in the diagram and pass them
-   * straight through here without changing the ribbon builder.
+   * Explicit control-handle overrides. When provided, they replace the
+   * auto-derived handles — the edge component passes the connection's
+   * stored per-edge handles straight through here without changing the
+   * ribbon builder.
    */
   controls?: {
     c1?: FlowPoint;

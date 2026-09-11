@@ -146,6 +146,10 @@ function CanvasInner() {
   );
 
   // Connect-on-drop onto empty canvas: dragging a handle to empty space creates a node.
+  // Client-point extraction covers MouseEvent, PointerEvent (touch/pen carry
+  // clientX/Y directly), and TouchEvent (coordinates live on touches or
+  // changedTouches — Safari fires the latter on touchend). Without this,
+  // touch connect-on-drop lands at the origin on some browsers.
   const onConnectEnd = useCallback(
     (
       event: MouseEvent | TouchEvent,
@@ -153,10 +157,15 @@ function CanvasInner() {
     ) => {
       if (state.isValid) return;
       if (!state.fromNode) return;
-      const target = event.target as HTMLElement;
-      if (target.closest('.react-flow__node')) return;
-      const clientX = 'clientX' in event ? event.clientX : (event.touches[0]?.clientX ?? 0);
-      const clientY = 'clientY' in event ? event.clientY : (event.touches[0]?.clientY ?? 0);
+      const target = event.target as Element | null;
+      if (target?.closest?.('.react-flow__node')) return;
+      const withTouch = event as Partial<MouseEvent> & {
+        touches?: ArrayLike<{ clientX: number; clientY: number }>;
+        changedTouches?: ArrayLike<{ clientX: number; clientY: number }>;
+      };
+      const touchPoint = withTouch.touches?.[0] ?? withTouch.changedTouches?.[0];
+      const clientX = touchPoint?.clientX ?? withTouch.clientX ?? 0;
+      const clientY = touchPoint?.clientY ?? withTouch.clientY ?? 0;
       const position = screenToFlowPosition({ x: clientX, y: clientY });
       const newId = addNode(undefined, position);
       addConnection(state.fromNode.id, newId, 1);

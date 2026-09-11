@@ -24,7 +24,7 @@ export default function HelpOverlay() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open ]);
+  }, [open]);
 
   const dismiss = () => {
     try {

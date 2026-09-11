@@ -31,7 +31,18 @@ export default function Toolbar() {
 
   // Collapsible left dock. A dedicated tools icon is the toggle; the panel
   // stays open until the user explicitly toggles it again (never auto-closes).
-  const [panelOpen, setPanelOpen] = useState(true);
+  // On small screens the panel starts collapsed so the canvas — the primary
+  // experience — is visible first; the same toggle opens it (44px target).
+  const [panelOpen, setPanelOpen] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+        return !window.matchMedia('(max-width: 640px)').matches;
+      }
+    } catch {
+      // matchMedia unavailable — fall through to the desktop default.
+    }
+    return true;
+  });
 
   // Clear All is intentionally destructive with a mandatory reading/wait
   // period: the dialog opens with a disabled Wait countdown (3s) during
