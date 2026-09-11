@@ -6,10 +6,15 @@ import { persist } from 'zustand/middleware';
  * Minimal appearance state (theme + font), persisted separately from the
  * diagram so it never touches the diagram persistence architecture.
  * Defaults: system theme (follows the OS), Inter font stack.
+ *
+ * Font set is deliberately differentiated: neutral Inter, geometric
+ * Space Grotesk, humanist IBM Plex Sans, soft DM Sans, monospace
+ * JetBrains Mono. Each maps to a real webfont (see index.html) so the
+ * selection renders visibly differently, not just a relabeled fallback.
  */
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
-export type FontChoice = 'inter' | 'geist' | 'plex' | 'mono' | 'system';
+export type FontChoice = 'inter' | 'grotesk' | 'plex' | 'dm' | 'mono';
 
 interface AppearanceState {
   theme: ThemeChoice;
@@ -26,7 +31,52 @@ export const useAppearanceStore = create<AppearanceState>()(
       setTheme: (theme) => set({ theme }),
       setFont: (font) => set({ font }),
     }),
-    { name: 'sanklean:appearance:v1', version: 1 },
+    {
+      name: 'sanklean:appearance:v1',
+      version: 2,
+      // Rehydration guard: same-version corrupt values bypass `migrate`,
+      // so allowlist here too — unknown values fall back to the defaults
+      // instead of rendering an unstyled theme/font.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as { theme?: unknown; font?: unknown };
+        if (typeof p !== 'object') return current;
+        const theme: ThemeChoice =
+          p.theme === 'light' || p.theme === 'dark' || p.theme === 'system'
+            ? p.theme
+            : current.theme;
+        const font: FontChoice =
+          p.font === 'inter' ||
+          p.font === 'grotesk' ||
+          p.font === 'plex' ||
+          p.font === 'dm' ||
+          p.font === 'mono'
+            ? p.font
+            : current.font;
+        return { ...current, theme, font };
+      },
+      migrate: (persisted, version) => {
+        // v1 -> v2: 'geist' (removed) maps to geometric 'grotesk',
+        // explicit 'system' (removed) maps to neutral 'inter'.
+        // Anything unknown falls back to 'inter' so the UI never renders
+        // an unstyled data-font value.
+        const state = persisted as { font?: unknown; theme?: unknown };
+        if (!state || typeof state !== 'object') return persisted as never;
+        if (version < 2) {
+          if (state.font === 'geist') return { ...state, font: 'grotesk' } as never;
+          if (state.font === 'system') return { ...state, font: 'inter' } as never;
+          if (
+            state.font !== 'inter' &&
+            state.font !== 'grotesk' &&
+            state.font !== 'plex' &&
+            state.font !== 'dm' &&
+            state.font !== 'mono'
+          ) {
+            return { ...state, font: 'inter' } as never;
+          }
+        }
+        return persisted as never;
+      },
+    },
   ),
 );
 

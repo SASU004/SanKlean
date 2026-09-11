@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppearanceStore, type FontChoice, type ThemeChoice } from '../state/appearanceStore';
 import { useDiagramStore } from '../state/diagramStore';
 
-/** Deliberately minimal chrome: brand + diagram name + tool + the Add node action. */
+/** Minimal top chrome (brand + diagram name) + floating Excalidraw-style tool dock. */
 type ClearPhase = 'idle' | 'waiting' | 'ready';
 const CLEAR_COUNTDOWN_SECONDS = 3;
+
+const SELECT_HELP_TEXT = 'Select individual elements or groups of elements for deletion.';
 
 export default function Toolbar() {
   const name = useDiagramStore((s) => s.activeDiagram().name);
@@ -26,6 +28,10 @@ export default function Toolbar() {
   );
   const hasSelection =
     selectedNodeIds.length > 0 || selectedConnectionIds.length > 0 || selectedConnectionId !== null;
+
+  // Collapsible left dock. A dedicated tools icon is the toggle; the panel
+  // stays open until the user explicitly toggles it again (never auto-closes).
+  const [panelOpen, setPanelOpen] = useState(true);
 
   // Clear All is intentionally destructive with a mandatory reading/wait
   // period: the dialog opens with a disabled Wait countdown (3s) during
@@ -132,122 +138,227 @@ export default function Toolbar() {
 
   return (
     <>
-    <header className="toolbar">
-      <div className="brand">
-        <span className="brand-mark" aria-hidden>
-          ≈
-        </span>
-        <span className="brand-name">Sanklean</span>
-        <input
-          className="diagram-name"
-          value={name}
-          onChange={(e) => renameDiagram(e.target.value)}
-          aria-label="Diagram name"
-          spellCheck={false}
-        />
-      </div>
-      <div className="toolbar-tools" role="toolbar" aria-label="Canvas tools">
+      <header className="topbar">
+        <div className="brand">
+          <img
+            className="brand-logo"
+            src="/sk-logo.png"
+            alt="SanKlean logo"
+            width={28}
+            height={28}
+          />
+          <span className="brand-name">SanKlean</span>
+          <input
+            className="diagram-name"
+            value={name}
+            onChange={(e) => renameDiagram(e.target.value)}
+            aria-label="Diagram name"
+            placeholder="Name your diagram…"
+            maxLength={80}
+            spellCheck={false}
+          />
+        </div>
+      </header>
+
+      <div className={`dock${panelOpen ? ' open' : ''}`}>
         <button
-          className={`btn tool${activeTool === 'hand' ? ' active' : ''}`}
-          onClick={() => setActiveTool('hand')}
-          title="Hand (H): drag to pan the canvas"
-          aria-pressed={activeTool === 'hand'}
+          className="dock-toggle"
+          onClick={() => setPanelOpen((o) => !o)}
+          aria-expanded={panelOpen}
+          aria-label={panelOpen ? 'Close tools panel' : 'Open tools panel'}
+          title={panelOpen ? 'Close tools panel' : 'Open tools panel'}
         >
-          <span aria-hidden>✥</span> Hand
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
         </button>
-        <button
-          className={`btn tool${activeTool === 'select' ? ' active' : ''}`}
-          onClick={() => setActiveTool('select')}
-          title="Select elements for group deletion: drag to select a group, Del deletes"
-          aria-pressed={activeTool === 'select'}
-        >
-          <span aria-hidden>⬚</span> Select
-        </button>
+        {panelOpen && (
+          <div className="dock-panel" role="toolbar" aria-label="Canvas tools">
+            <div className="dock-group">
+              <button
+                className={`dock-btn${activeTool === 'hand' ? ' active' : ''}`}
+                onClick={() => setActiveTool('hand')}
+                title="Hand (H): drag to pan the canvas"
+                aria-pressed={activeTool === 'hand'}
+              >
+                <span className="dock-ico" aria-hidden>
+                  ✥
+                </span>
+                <span>Hand</span>
+              </button>
+              <div className="dock-row">
+                <button
+                  className={`dock-btn dock-row-btn${activeTool === 'select' ? ' active' : ''}`}
+                  onClick={() => setActiveTool('select')}
+                  title={SELECT_HELP_TEXT}
+                  aria-pressed={activeTool === 'select'}
+                >
+                  <span className="dock-ico" aria-hidden>
+                    ⬚
+                  </span>
+                  <span>Select</span>
+                </button>
+                <span
+                  className="dock-help"
+                  tabIndex={0}
+                  role="note"
+                  aria-label={SELECT_HELP_TEXT}
+                  data-tip={SELECT_HELP_TEXT}
+                >
+                  ?
+                </span>
+              </div>
+              <button
+                className="dock-btn primary"
+                onClick={() => addNode()}
+                title="Add a node (N)"
+              >
+                <span className="dock-ico" aria-hidden>
+                  +
+                </span>
+                <span>Add node</span>
+              </button>
+            </div>
+
+            <div className="dock-sep" aria-hidden />
+
+            <div className="dock-group">
+              <button
+                className="dock-btn danger"
+                onClick={() => deleteSelected()}
+                disabled={!hasSelection}
+                title={
+                  hasSelection
+                    ? 'Delete selected node(s)/ribbon(s) (Del)'
+                    : 'Select a node or ribbon to delete it'
+                }
+                aria-label="Delete selected elements"
+              >
+                <span className="dock-ico" aria-hidden>
+                  −
+                </span>
+                <span>Delete</span>
+              </button>
+              <button
+                className="dock-btn"
+                onClick={openClearConfirm}
+                disabled={isEmpty}
+                title={isEmpty ? 'Diagram is already empty' : 'Clear all nodes and connections…'}
+              >
+                <span className="dock-ico" aria-hidden>
+                  ✕
+                </span>
+                <span>Clear all</span>
+              </button>
+            </div>
+
+            <div className="dock-sep" aria-hidden />
+
+            <div className="dock-group">
+              <label className="dock-field">
+                <span className="dock-label">Theme</span>
+                <select
+                  className="dock-select"
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value as ThemeChoice)}
+                  aria-label="Theme"
+                  title="Theme: light, dark, or follow the system"
+                >
+                  <option value="system">System</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+              <label className="dock-field">
+                <span className="dock-label">Font</span>
+                <select
+                  className="dock-select"
+                  value={font}
+                  onChange={(e) => setFont(e.target.value as FontChoice)}
+                  aria-label="Font"
+                  title="Interface and label font"
+                >
+                  <option value="inter" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+                    Inter
+                  </option>
+                  <option
+                    value="grotesk"
+                    style={{ fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif" }}
+                  >
+                    Space Grotesk
+                  </option>
+                  <option
+                    value="plex"
+                    style={{ fontFamily: "'IBM Plex Sans', 'Inter', system-ui, sans-serif" }}
+                  >
+                    IBM Plex Sans
+                  </option>
+                  <option value="dm" style={{ fontFamily: "'DM Sans', 'Inter', system-ui, sans-serif" }}>
+                    DM Sans
+                  </option>
+                  <option
+                    value="mono"
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+                  >
+                    JetBrains Mono
+                  </option>
+                </select>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
-      <div className="toolbar-appearance" role="group" aria-label="Appearance">
-        <select
-          className="select-compact"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as ThemeChoice)}
-          aria-label="Theme"
-          title="Theme: light, dark, or follow the system"
-        >
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-        <select
-          className="select-compact"
-          value={font}
-          onChange={(e) => setFont(e.target.value as FontChoice)}
-          aria-label="Font"
-          title="Interface and label font"
-        >
-          <option value="inter">Inter</option>
-          <option value="geist">Geist</option>
-          <option value="plex">IBM Plex Sans</option>
-          <option value="mono">JetBrains Mono</option>
-          <option value="system">System</option>
-        </select>
-      </div>
-      <div className="toolbar-actions">
-        <button
-          className="btn danger-btn"
-          onClick={() => deleteSelected()}
-          disabled={!hasSelection}
-          title={
-            hasSelection
-              ? 'Delete selected node(s)/ribbon(s) (Del)'
-              : 'Select a node or ribbon to delete it'
-          }
-        >
-          Delete
-        </button>
-        <button
-          className="btn"
-          onClick={openClearConfirm}
-          disabled={isEmpty}
-          title={isEmpty ? 'Diagram is already empty' : 'Clear all nodes and connections…'}
-        >
-          Clear all
-        </button>
-        <button className="btn primary" onClick={() => addNode()} title="Add a node (N)">
-          + Add node
-        </button>
-      </div>
-    </header>
-    {clearPhase !== 'idle' && (
-      <div
-        className="confirm-backdrop"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) cancelClear();
-        }}
-      >
+
+      {clearPhase !== 'idle' && (
         <div
-          className="confirm-card"
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="Clear entire diagram"
+          className="confirm-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) cancelClear();
+          }}
         >
-          <h3>Clear entire diagram?</h3>
-          <p>Clearing everything from the current panel cannot be undone or retrieved.</p>
-          <div className="confirm-actions">
-            <button ref={cancelRef} className="btn" onClick={cancelClear}>
-              Cancel
-            </button>
-            {clearPhase === 'waiting' ? (
-              <button className="btn danger-btn" disabled aria-live="polite">
-                Wait {secondsLeft}…
+          <div
+            className="confirm-card"
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Clear entire diagram"
+          >
+            <h3>Clear entire diagram?</h3>
+            <p>Clearing everything from the current panel cannot be undone or retrieved.</p>
+            <div className="confirm-actions">
+              <button ref={cancelRef} className="btn" onClick={cancelClear}>
+                Cancel
               </button>
-            ) : (
-              <button className="btn danger-btn" onClick={confirmClear}>
-                Clear All
-              </button>
-            )}
+              {clearPhase === 'waiting' ? (
+                <button className="btn danger-btn" disabled aria-live="polite">
+                  Wait {secondsLeft}…
+                </button>
+              ) : (
+                <button className="btn danger-btn" onClick={confirmClear}>
+                  Clear All
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </>
   );
 }

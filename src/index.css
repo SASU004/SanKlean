@@ -13,23 +13,27 @@
   --pill: rgba(255, 255, 255, 0.85);
   --accent-soft: #eef2ff;
   --danger-soft: #fef2f2;
-  /* Interface + diagram-label font. Local stacks only — no webfont downloads. */
-  --app-font: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Interface + diagram-label font. Real webfonts (see index.html) so each
+     choice renders visibly differently. */
+  --app-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-family: var(--app-font);
   color-scheme: light;
 }
 
-:root[data-font="geist"] {
-  --app-font: Geist, Inter, system-ui, -apple-system, sans-serif;
+:root[data-font="inter"] {
+  --app-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+:root[data-font="grotesk"] {
+  --app-font: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 }
 :root[data-font="plex"] {
-  --app-font: 'IBM Plex Sans', Inter, system-ui, sans-serif;
+  --app-font: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+}
+:root[data-font="dm"] {
+  --app-font: 'DM Sans', 'Inter', system-ui, sans-serif;
 }
 :root[data-font="mono"] {
   --app-font: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
-}
-:root[data-font="system"] {
-  --app-font: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 :root[data-theme="dark"] {
@@ -74,60 +78,189 @@ html, body, #root {
   color: var(--text);
 }
 
-/* Slim top bar — the only chrome on the whiteboard */
-.toolbar {
+/* Minimal top bar — brand + diagram name only. Canvas keeps the focus. */
+.topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   z-index: 10;
+  min-height: 44px;
 }
 
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand-mark {
-  width: 32px; height: 32px;
-  display: grid; place-items: center;
-  background: var(--accent);
-  color: white;
+.brand-logo {
+  width: 28px; height: 28px;
+  display: block;
   border-radius: 8px;
-  font-size: 20px;
-  font-weight: 700;
+  object-fit: cover;
   flex-shrink: 0;
 }
-.brand-name { font-weight: 700; font-size: 15px; white-space: nowrap; }
+.brand-name { font-weight: 700; font-size: 14px; white-space: nowrap; letter-spacing: -0.01em; }
 .diagram-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--muted);
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 6px 10px;
-  min-width: 120px;
-  max-width: 260px;
+  padding: 5px 9px;
+  min-width: 100px;
+  max-width: 240px;
   background: transparent;
+  font-family: inherit;
 }
 .diagram-name:hover { border-color: var(--border); }
 .diagram-name:focus { outline: none; border-color: var(--accent); background: var(--panel); color: var(--text); }
 
-.toolbar-appearance { display: flex; gap: 8px; align-items: center; }
-.select-compact {
-  border: 1px solid var(--border);
+/* Floating Excalidraw-style left tool dock. Compact, intentional, unobtrusive. */
+.dock {
+  position: fixed;
+  left: 12px;
+  top: 60px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  width: max-content;
+  max-width: min(200px, calc(100vw - 24px));
+}
+.dock.open { width: 176px; }
+.dock-toggle {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.dock-toggle:hover { background: var(--accent-dark); }
+.dock-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dock-toggle svg { width: 18px; height: 18px; display: block; }
+.dock-panel { display: flex; flex-direction: column; margin-top: 6px; }
+.dock-group { display: flex; flex-direction: column; gap: 2px; }
+.dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text);
   border-radius: 8px;
   padding: 7px 8px;
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
+  line-height: 1.25;
   cursor: pointer;
-  max-width: 132px;
+  text-align: left;
+  white-space: nowrap;
 }
-.select-compact:hover { border-color: var(--accent); }
+.dock-btn:hover { background: var(--hover); }
+.dock-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dock-btn.active { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
+.dock-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.dock-btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.dock-btn.danger { color: var(--danger); }
+.dock-btn.danger:hover { background: var(--danger-soft); }
+.dock-btn:disabled { opacity: 0.45; cursor: default; }
+.dock-btn:disabled:hover { background: transparent; }
+.dock-btn.primary:disabled:hover { background: var(--accent); }
+.dock-ico {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+.dock-row { display: flex; align-items: center; gap: 4px; }
+.dock-row-btn { flex: 1; min-width: 0; }
+.dock-help {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
+  cursor: help;
+  flex-shrink: 0;
+}
+.dock-help:hover, .dock-help:focus { color: var(--accent-dark); border-color: var(--accent); outline: none; }
+.dock-help::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  width: max-content;
+  max-width: 190px;
+  white-space: normal;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 6px 9px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
+  z-index: 30;
+  pointer-events: none;
+}
+.dock-help:hover::after, .dock-help:focus::after, .dock-help:focus-visible::after { display: block; }
+.dock-sep { height: 1px; background: var(--border); margin: 6px 2px; }
+.dock-field { display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
+.dock-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 2px;
+}
+.dock-select {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 6px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--app-font);
+  cursor: pointer;
+}
+.dock-select:hover { border-color: var(--accent); }
+.dock-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.toolbar-actions { display: flex; gap: 8px; }
+@media (max-width: 640px) {
+  .dock { left: 8px; top: 56px; }
+  .dock.open { width: 152px; }
+  .dock-btn { padding: 6px 7px; font-size: 12.5px; }
+  .dock-help::after { max-width: 150px; }
+  .diagram-name { max-width: 140px; min-width: 80px; }
+  .brand-name { font-size: 13px; }
+}
 
 .btn {
   border: 1px solid var(--border);
@@ -155,8 +288,6 @@ html, body, #root {
    connects, white-dot drag reshapes). Moving away returns to pan.
    Selector is secondary (group deletion): empty-canvas drag draws a marquee
    rectangle instead of panning. */
-.toolbar-tools { display: flex; gap: 8px; align-items: center; }
-.btn.tool.active { border-color: var(--accent); color: var(--accent-dark); background: var(--accent-soft); }
 .canvas-wrap.tool-hand .react-flow__pane { cursor: grab; }
 .canvas-wrap.tool-hand .react-flow__pane:active { cursor: grabbing; }
 /* Elements are interactable on hover — never the pan cursor. */
@@ -508,3 +639,20 @@ html, body, #root {
 .onboarding p { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
 .onboarding ol { font-size: 14px; padding-left: 20px; display: grid; gap: 6px; margin: 0; }
 .onboarding-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+/* Error-boundary recovery screen: minimal, same card language as onboarding. */
+.error-fallback {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+  padding: 24px 28px;
+  max-width: 360px;
+  text-align: left;
+}
+.error-fallback h2 { margin: 0 0 8px; font-size: 16px; }
+.error-fallback p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }

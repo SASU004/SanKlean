@@ -50,7 +50,7 @@ export default function HelpOverlay() {
           <button className="help-close" onClick={dismiss} title="Dismiss" aria-label="Dismiss help">
             ×
           </button>
-          <h3>Sanklean</h3>
+          <h3>SanKlean</h3>
           <ul>
             <li>
               <kbd>N</kbd> or double-click — new node

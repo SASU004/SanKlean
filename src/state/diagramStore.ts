@@ -11,6 +11,7 @@ import {
   isControlPointPair,
   isValidDiagram,
   normalizeDiagram,
+  sanitizePersistedDiagram,
   type ControlPoint,
   type Diagram,
   type NodePosition,
@@ -797,12 +798,46 @@ export const useDiagramStore = create<DiagramState>()(
       partialize: (s) => ({ diagrams: s.diagrams, activeDiagramId: s.activeDiagramId }),
       migrate: (persisted) => {
         // Fill in fields added after the first release (value, color).
-        const state = persisted as { diagrams?: Record<string, Diagram>; activeDiagramId?: string };
+        // Sanitized entry-by-entry so corrupt persisted entries can never
+        // throw here; unrecoverable diagrams are dropped, valid ones kept.
+        const state = persisted as { diagrams?: Record<string, unknown>; activeDiagramId?: unknown };
         if (!state || typeof state !== 'object' || !state.diagrams) return persisted as never;
         const diagrams = Object.fromEntries(
-          Object.entries(state.diagrams).map(([id, d]) => [id, isValidDiagram(d) ? normalizeDiagram(d) : d]),
+          Object.entries(state.diagrams)
+            .map(([id, d]) => {
+              if (isValidDiagram(d)) return [id, normalizeDiagram(d)] as const;
+              const clean = sanitizePersistedDiagram(d);
+              return clean ? ([clean.id, clean] as const) : null;
+            })
+            .filter((e): e is readonly [string, Diagram] => e !== null),
         );
         return { ...state, diagrams } as never;
+      },
+      // Rehydration guard (zustand only runs `migrate` on version mismatch,
+      // so same-version corrupt data would otherwise flow straight into the
+      // renderer and crash on `.map`/NaN positions). Every persisted diagram
+      // is sanitized; only unrecoverable ones fall back to the initial state.
+      // Session-only fields (selection, history) always come from `current`.
+      merge: (persisted, current) => {
+        const p = persisted as
+          | { diagrams?: Record<string, unknown>; activeDiagramId?: unknown }
+          | undefined
+          | null;
+        if (!p || typeof p !== 'object' || !p.diagrams || typeof p.diagrams !== 'object') {
+          return current;
+        }
+        const diagrams: Record<string, Diagram> = {};
+        for (const d of Object.values(p.diagrams)) {
+          const clean = sanitizePersistedDiagram(d);
+          if (clean) diagrams[clean.id] = clean;
+        }
+        const ids = Object.keys(diagrams);
+        if (ids.length === 0) return current;
+        const activeDiagramId =
+          typeof p.activeDiagramId === 'string' && diagrams[p.activeDiagramId] !== undefined
+            ? p.activeDiagramId
+            : (ids[0] ?? current.activeDiagramId);
+        return { ...current, diagrams, activeDiagramId };
       },
       // One-time carry-over from the pre-rename key so existing diagrams survive.
       // New installs read/write `sanklean:v1` only; old installs get copied once.

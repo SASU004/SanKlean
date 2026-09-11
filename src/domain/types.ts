@@ -329,3 +329,81 @@ export function isValidDiagram(data: unknown): data is Diagram {
     typeof d.positions === 'object'
   );
 }
+
+/**
+ * Repair persisted (untrusted) diagram data at the rehydration boundary.
+ * Returns a safe Diagram, or null when the top-level structure is beyond
+ * repair. Repairs entry-by-entry so one corrupt node/connection/position
+ * never discards an otherwise valid diagram:
+ * - entries without a usable string id are dropped (unreferenceable)
+ * - labels fall back to 'Untitled', values clamp via the numeric boundary,
+ *   colors fall back to the deterministic id color, timestamps to now
+ * - connections pointing at missing nodes are dropped (dangling refs)
+ * - non-finite positions are dropped (adapter already defaults missing ones)
+ * - capacity invariants are re-enforced like any other load path
+ */
+export function sanitizePersistedDiagram(raw: unknown): Diagram | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const d = raw as Record<string, unknown>;
+  if (!Array.isArray(d.nodes) || !Array.isArray(d.connections)) return null;
+  if (typeof d.positions !== 'object' || d.positions === null) return null;
+
+  const id = typeof d.id === 'string' && d.id.length > 0 ? d.id : uid();
+  const name = typeof d.name === 'string' ? d.name : 'Untitled flow';
+
+  const nodes: FlowNode[] = [];
+  for (const entry of d.nodes) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const n = entry as Record<string, unknown>;
+    if (typeof n.id !== 'string' || n.id.length === 0) continue;
+    nodes.push({
+      id: n.id,
+      label: typeof n.label === 'string' ? n.label : 'Untitled',
+      value: normalizeNodeValue(n.value, 0),
+      color:
+        typeof n.color === 'string' && n.color.length > 0 ? n.color : autoColorForId(n.id),
+      createdAt:
+        typeof n.createdAt === 'number' && Number.isFinite(n.createdAt)
+          ? n.createdAt
+          : Date.now(),
+    });
+  }
+  const nodeIds = new Set(nodes.map((n) => n.id));
+
+  const connections: FlowConnection[] = [];
+  for (const entry of d.connections) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const c = entry as Record<string, unknown>;
+    if (typeof c.id !== 'string' || c.id.length === 0) continue;
+    if (typeof c.sourceId !== 'string' || typeof c.targetId !== 'string') continue;
+    if (!nodeIds.has(c.sourceId) || !nodeIds.has(c.targetId)) continue;
+    const conn: FlowConnection = {
+      id: c.id,
+      sourceId: c.sourceId,
+      targetId: c.targetId,
+      value: normalizeConnectionValue(c.value, 1),
+      createdAt:
+        typeof c.createdAt === 'number' && Number.isFinite(c.createdAt)
+          ? c.createdAt
+          : Date.now(),
+    };
+    if (typeof c.label === 'string' && c.label.length > 0) conn.label = c.label;
+    if (isControlPointPair(c.controlPoints)) {
+      conn.controlPoints = [{ ...c.controlPoints[0] }, { ...c.controlPoints[1] }];
+    }
+    connections.push(conn);
+  }
+
+  const positions: Record<string, NodePosition> = {};
+  for (const [key, p] of Object.entries(d.positions as Record<string, unknown>)) {
+    if (typeof p !== 'object' || p === null) continue;
+    const { x, y } = p as { x?: unknown; y?: unknown };
+    if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y)) {
+      positions[key] = { x, y };
+    }
+  }
+
+  const updatedAt =
+    typeof d.updatedAt === 'number' && Number.isFinite(d.updatedAt) ? d.updatedAt : Date.now();
+  return enforceParentCapacities({ id, name, nodes, connections, positions, updatedAt });
+}
