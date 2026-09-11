@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import FlowCanvas from './components/FlowCanvas';
 import HelpOverlay from './components/HelpOverlay';
 import Toolbar from './components/Toolbar';
@@ -22,6 +23,7 @@ export default function App() {
         <FlowCanvas />
       </ReactFlowProvider>
       <HelpOverlay />
+      <SpeedInsights />
     </div>
   );
 }
