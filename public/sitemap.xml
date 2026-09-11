@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SanKlean sitemap — single-page app, so only the canonical homepage is listed.
+  No fake URLs or SEO-only pages. The `<loc>` URL is injected at build time
+  from the single source of truth in `src/site.ts` (overridable via
+  `VITE_SITE_URL`), matching the canonical URL in `index.html`.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>__SITE_URL__/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

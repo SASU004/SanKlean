@@ -2,10 +2,67 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SanKlean — Job Application Tracker &amp; Sankey Diagram Maker</title>
+    <meta
+      name="description"
+      content="SanKlean is a free visual job application tracker. Map job and internship applications, replies, interviews, and offers as a clear Sankey-style flow."
+    />
+    <!--
+      Canonical + social URLs are injected at build time from the single
+      source of truth in `src/site.ts` (overridable via `VITE_SITE_URL`).
+      Do not hardcode the production domain here.
+    -->
+    <link rel="canonical" href="__SITE_URL__/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#f8fafc" />
+    <meta name="application-name" content="SanKlean" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SanKlean" />
+    <meta property="og:title" content="SanKlean — Job Application Tracker &amp; Sankey Diagram Maker" />
+    <meta
+      property="og:description"
+      content="SanKlean is a free visual job application tracker. Map job and internship applications, replies, interviews, and offers as a clear Sankey-style flow."
+    />
+    <meta property="og:url" content="__SITE_URL__/" />
+    <meta property="og:image" content="__SITE_URL__/sk-logo.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="SanKlean logo" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SanKlean — Job Application Tracker &amp; Sankey Diagram Maker" />
+    <meta
+      name="twitter:description"
+      content="SanKlean is a free visual job application tracker. Map job and internship applications, replies, interviews, and offers as a clear Sankey-style flow."
+    />
+    <meta name="twitter:image" content="__SITE_URL__/sk-logo.png" />
+    <meta name="twitter:image:alt" content="SanKlean logo" />
+
+    <!-- Structured data: WebApplication only — no ratings, reviews, pricing,
+      or usage figures are claimed because none exist. URLs use the same
+      build-time `__SITE_URL__` placeholder as canonical / social tags. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "SanKlean",
+        "url": "__SITE_URL__/",
+        "image": "__SITE_URL__/sk-logo.png",
+        "description": "SanKlean is a free visual job application tracker. Map job and internship applications, replies, interviews, and offers as a clear Sankey-style flow.",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Any",
+        "inLanguage": "en",
+        "browserRequirements": "Requires JavaScript. Requires HTML5."
+      }
+    </script>
+
+    <!-- Favicon: existing SanKlean branding -->
     <link rel="icon" type="image/png" href="/sk-logo.png" />
     <link rel="apple-touch-icon" href="/sk-logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SanKlean — Sankey-style flow whiteboard</title>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -1,0 +1,7 @@
+# SanKlean robots.txt — allows normal search-engine crawling.
+# The Sitemap URL below is injected at build time from the single source of
+# truth in `src/site.ts` (overridable via `VITE_SITE_URL`).
+User-agent: *
+Allow: /
+
+Sitemap: __SITE_URL__/sitemap.xml
