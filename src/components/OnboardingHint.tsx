@@ -13,7 +13,7 @@ export default function OnboardingHint() {
         </li>
         <li>Hover a bar to reveal its handles, then drag bar → bar to connect.</li>
         <li>Click a name or value beside a bar to edit it in place.</li>
-        <li>Select a flow to edit its value or drag its curve points.</li>
+        <li>Select a flow to edit its value.</li>
       </ol>
       <div className="onboarding-actions">
         <button className="btn primary" onClick={() => addNode('Applications', { x: 200, y: 200 })}>

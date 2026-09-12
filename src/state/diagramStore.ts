@@ -8,11 +8,9 @@ import {
   createNode,
   enforceParentCapacities,
   incomingConnections,
-  isControlPointPair,
   isValidDiagram,
   normalizeDiagram,
   sanitizePersistedDiagram,
-  type ControlPoint,
   type Diagram,
   type NodePosition,
 } from '../domain/types';
@@ -28,7 +26,7 @@ import { BAR_MIN_HEIGHT, layoutDiagramFlows } from '../adapters/reactflow';
  * localStorage (autosave).
  *
  * Undo/redo is a snapshot stack over { diagrams, activeDiagramId }.
- * Pointer-drag bursts (node moves, curve drags) coalesce into one entry
+ * Pointer-drag bursts (node moves) coalesce into one entry
  * so a single Ctrl+Z reverts the whole gesture, not every mousemove.
  */
 
@@ -51,7 +49,6 @@ interface NodePatch {
 interface ConnectionPatch {
   value?: number;
   label?: string;
-  controlPoints?: [ControlPoint, ControlPoint] | null;
 }
 
 interface DiagramState {
@@ -113,7 +110,7 @@ interface DiagramState {
 const HISTORY_LIMIT = 50;
 /** Window in which consecutive drag writes merge into one history entry. */
 const TRANSIENT_WINDOW_MS = 800;
-const TRANSIENT_TYPES = new Set(['move-node', 'curve-drag']);
+const TRANSIENT_TYPES = new Set(['move-node']);
 
 function initial(): { diagrams: Record<string, Diagram>; activeDiagramId: string } {
   const d = createDiagram('My first flow');
@@ -509,10 +506,9 @@ export const useDiagramStore = create<DiagramState>()(
         updateConnection: (id, patch) => {
           const s = get();
           const diagram = active(s);
-          const type = patch.controlPoints !== undefined && patch.controlPoints !== null ? 'curve-drag' : 'edit-edge';
           // Single-parent flows are derived from the child value — an
           // independently edited edge number must not exist in that mode,
-          // so value patches there are dropped (label/curve still apply).
+          // so value patches there are dropped (label still applies).
           const targetSingleParent =
             patch.value !== undefined
               ? (() => {
@@ -520,7 +516,7 @@ export const useDiagramStore = create<DiagramState>()(
                   return conn ? incomingConnections(diagram, conn.targetId).length === 1 : false;
                 })()
               : false;
-          commit(type, (prev) => ({
+          commit('edit-edge', (prev) => ({
             diagrams: {
               ...prev.diagrams,
               [diagram.id]: {
@@ -540,14 +536,6 @@ export const useDiagramStore = create<DiagramState>()(
                         })()
                       : {}),
                   };
-                  if (patch.controlPoints !== undefined) {
-                    if (patch.controlPoints === null) {
-                      delete next.controlPoints;
-                    } else if (isControlPointPair(patch.controlPoints)) {
-                      // Copy so later UI mutations can't alias stored state.
-                      next.controlPoints = [{ ...patch.controlPoints[0] }, { ...patch.controlPoints[1] }];
-                    }
-                  }
                   return next;
                 }),
                 updatedAt: Date.now(),

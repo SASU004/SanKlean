@@ -53,17 +53,22 @@ export default function HelpOverlay() {
           <h3>SanKlean</h3>
           <ul>
             <li>
-              <kbd>N</kbd> or double-click — new node
+              <kbd>N</kbd> — new node
             </li>
             <li>Hover a bar → drag handle to another bar (or empty space)</li>
             <li>Click a name or value beside a bar to edit it</li>
-            <li>Drag a flow&apos;s white dots to reshape it</li>
             <li>
-              <kbd>Del</kbd> delete · <kbd>Esc</kbd> deselect
+              <kbd>Del</kbd> — delete
+            </li>
+            <li>
+              <kbd>Esc</kbd> — deselect
             </li>
             <li>Select tool — drag to select a group, then <kbd>Del</kbd></li>
             <li>
-              <kbd>Ctrl/⌘ Z</kbd> undo · <kbd>Ctrl/⌘ ⇧ Z</kbd> redo
+              <kbd>Ctrl/⌘ Z</kbd> — undo
+            </li>
+            <li>
+              <kbd>Ctrl/⌘ Y</kbd> — redo
             </li>
             <li>Drag background to pan · wheel to zoom</li>
           </ul>

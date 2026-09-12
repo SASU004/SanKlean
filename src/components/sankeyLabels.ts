@@ -1,4 +1,4 @@
-import { isControlPointPair, type Diagram } from '../domain/types';
+import type { Diagram } from '../domain/types';
 import { cubic, defaultControls } from './sankeyGeometry';
 
 /**
@@ -111,10 +111,7 @@ export function resolveLabelPlacements(
     const width = layout.widths.get(c.id) ?? 4;
     const anchorS = { x: sBar.x + LABEL_BAR_WIDTH, y: sBar.y + sBar.h / 2 + lane.sourceDy };
     const anchorT = { x: tBar.x, y: tBar.y + tBar.h / 2 + lane.targetDy };
-    const stored = (c as { controlPoints?: unknown }).controlPoints;
-    const controls = isControlPointPair(stored)
-      ? { c1: { ...stored[0] }, c2: { ...stored[1] } }
-      : defaultControls(anchorS, anchorT);
+    const controls = defaultControls(anchorS, anchorT);
     const r = width / 2 + RIBBON_CLEARANCE;
     const samples: RibbonSample[] = [];
     for (let i = 0; i <= RIBBON_SAMPLES; i += 1) {

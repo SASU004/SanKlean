@@ -3,8 +3,6 @@ import {
   autoColorForId,
   effectiveFlowValue,
   incomingConnections,
-  isControlPointPair,
-  type ControlPoint,
   type Diagram,
   type FlowConnection,
 } from '../domain/types';
@@ -69,11 +67,6 @@ export interface SankeyEdgeData extends Record<string, unknown> {
    */
   sourceDy: number;
   targetDy: number;
-  /**
-   * User-customized curve handles (absolute canvas positions), forwarded
-   * verbatim after validation. Absent = the edge draws the auto curve.
-   */
-  controlPoints?: [ControlPoint, ControlPoint];
 }
 
 export type RFNode = Node<FlowNodeData, 'flowNode'>;
@@ -337,7 +330,6 @@ export function toReactFlowEdges(
         width: layout.widths.get(c.id) ?? edgeThickness(effectiveFlowValue(diagram, c)),
         sourceDy: lane.sourceDy,
         targetDy: lane.targetDy,
-        ...(isControlPointPair(c.controlPoints) ? { controlPoints: c.controlPoints } : {}),
       },
     };
   });

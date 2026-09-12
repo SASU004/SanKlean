@@ -144,6 +144,73 @@ button, select {
 .diagram-name:hover { border-color: var(--border); }
 .diagram-name:focus { outline: none; border-color: var(--accent); background: var(--panel); color: var(--text); }
 
+/* Share action pinned to the empty top-right of the topbar. */
+.topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+
+/* Refined Share button: same .btn chrome, pill shape echoing the toolbar
+   pills, semibold label. */
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+/* Share scope menu (only while a selection exists). Portaled to the body
+   like the help tooltip so topbar overflow can never clip it. Buttons
+   reuse .dock-btn styling. */
+.share-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  padding: 6px;
+  min-width: 200px;
+  max-width: calc(100vw - 24px);
+  z-index: 60;
+}
+
+/* Popover rows: full-width flex rows with vertically centered text and
+   consistent padding (touch sizing mirrored below). */
+.share-menu .dock-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  line-height: 1.25;
+}
+.share-menu .dock-btn > span {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+}
+@media (hover: none), (pointer: coarse) {
+  .share-menu .dock-btn { padding: 9px 10px; }
+}
+
+/* Temporary share confirmation pill. Minimal, same pill language as toolbars. */
+.share-toast {
+  position: fixed;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.25);
+  z-index: 40;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* Floating Excalidraw-style left tool dock. Compact, intentional, unobtrusive. */
 .dock {
   position: fixed;
@@ -161,12 +228,11 @@ button, select {
   width: max-content;
   max-width: min(200px, calc(100vw - 24px));
   /* On short viewports (landscape phones, small laptops) the open panel
-     scrolls internally instead of extending past the bottom edge. */
+     scrolls internally instead of extending past the bottom edge.
+     Overflow lives on .dock-panel (not .dock) so the "?" help tooltip
+     can render outside the toolbox without being clipped. */
   max-height: calc(100vh - 96px);
   max-height: calc(100dvh - 96px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 .dock.open { width: 176px; }
 .dock-toggle {
@@ -188,7 +254,7 @@ button, select {
 .dock-toggle:hover { background: var(--accent-dark); }
 .dock-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dock-toggle svg { width: 18px; height: 18px; display: block; }
-.dock-panel { display: flex; flex-direction: column; margin-top: 6px; }
+.dock-panel { display: flex; flex-direction: column; margin-top: 6px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .dock-group { display: flex; flex-direction: column; gap: 2px; }
 .dock-btn {
   display: flex;
@@ -243,16 +309,16 @@ button, select {
   flex-shrink: 0;
 }
 .dock-help:hover, .dock-help:focus { color: var(--accent-dark); border-color: var(--accent); outline: none; }
-.dock-help::after {
-  content: attr(data-tip);
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 50%;
+/* Portaled Select "?" tooltip (rendered in document.body, outside the
+   toolbox, so toolbox overflow can never clip it). Same visuals as the
+   previous inline ::after bubble; positioned via fixed left/top. */
+.dock-help-tip {
+  position: fixed;
   transform: translateY(-50%);
-  display: none;
   width: max-content;
   max-width: 190px;
   white-space: normal;
+  text-align: left;
   background: var(--text);
   color: var(--bg);
   font-size: 12px;
@@ -261,10 +327,10 @@ button, select {
   padding: 6px 9px;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
-  z-index: 30;
+  z-index: 60;
   pointer-events: none;
+  margin: 0;
 }
-.dock-help:hover::after, .dock-help:focus::after, .dock-help:focus-visible::after { display: block; }
 .dock-sep { height: 1px; background: var(--border); margin: 6px 2px; }
 .dock-field { display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
 .dock-label {
@@ -295,7 +361,7 @@ button, select {
   .dock { left: max(8px, env(safe-area-inset-left)); top: max(56px, calc(env(safe-area-inset-top) + 56px)); }
   .dock.open { width: 152px; }
   .dock-btn { padding: 6px 7px; font-size: 12.5px; }
-  .dock-help::after { max-width: 150px; }
+  .dock-help-tip { max-width: 150px; }
   .diagram-name { max-width: 140px; min-width: 60px; }
   .brand-name { font-size: 13px; }
 }
@@ -344,7 +410,6 @@ button, select {
   .btn { min-height: 40px; padding: 9px 14px; }
   .node-toolbar button { min-height: 36px; padding: 8px 14px; }
   .edge-delete-btn { width: 32px; height: 32px; }
-  .edge-reset-btn { min-width: 32px; min-height: 32px; }
   .help-fab { width: 44px; height: 44px; }
   .help-close { min-width: 40px; min-height: 40px; }
   /* Touch has no hover: a tapped (selected / focused) node must still
@@ -378,7 +443,7 @@ button, select {
 /* Canvas tools: Hand is the default (infinite whiteboard). Empty-canvas drag
    pans; hovering a node/ribbon automatically switches that element to
    selection/cursor interaction (click selects, bar drag moves, handle drag
-   connects, white-dot drag reshapes). Moving away returns to pan.
+   connects). Moving away returns to pan.
    Selector is secondary (group deletion): empty-canvas drag draws a marquee
    rectangle instead of panning. */
 .canvas-wrap.tool-hand .react-flow__pane { cursor: grab; }
@@ -617,22 +682,6 @@ button, select {
 .node-toolbar button.danger { color: var(--danger); }
 .node-toolbar button.danger:hover { background: var(--danger-soft); }
 
-/* Draggable curve handles on the selected connection */
-.flow-control-point {
-  fill: white;
-  stroke: var(--accent);
-  stroke-width: 2.5;
-  cursor: grab;
-  touch-action: none;
-  filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.3));
-}
-.flow-control-point:hover { fill: var(--accent); }
-/* The visible dot ignores pointer events (its wider invisible sibling owns
-   the hit area), so hover feedback is driven from the parent group. Scoped
-   to flow edges so no other SVG in the app is affected. */
-.react-flow__edge g:hover > .flow-control-point { fill: var(--accent); }
-.flow-control-point:active { cursor: grabbing; }
-
 /* Floating contextual toolbar for the selected connection */
 .edge-toolbar {
   position: absolute;
@@ -686,18 +735,6 @@ button, select {
   cursor: pointer;
 }
 .edge-delete-btn:hover { background: var(--danger-soft); }
-.edge-reset-btn {
-  border: none;
-  background: none;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 5px;
-}
-.edge-reset-btn:hover { background: var(--hover); color: var(--text); }
 
 /* Small destructive-confirm card (Clear All): backdrop click cancels */
 .confirm-backdrop {

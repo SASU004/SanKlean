@@ -19,16 +19,6 @@ export interface FlowCurveOptions {
    * span. Higher = looser S-curves. Default 0.5.
    */
   curvature?: number;
-  /**
-   * Explicit control-handle overrides. When provided, they replace the
-   * auto-derived handles — the edge component passes the connection's
-   * stored per-edge handles straight through here without changing the
-   * ribbon builder.
-   */
-  controls?: {
-    c1?: FlowPoint;
-    c2?: FlowPoint;
-  };
 }
 
 export interface FlowRibbon {
@@ -63,9 +53,8 @@ function fmt(n: number): string {
  * end-tangents keep the flow glued to the node handles; a minimum reach
  * keeps tight/backward flows round instead of pinched.
  *
- * The edge component uses this both as the fallback curve AND to seed +
- * position the draggable handles, so auto and custom curves share one
- * code path.
+ * V1 curves are always automatic — moving a node re-anchors the endpoints
+ * and this is re-derived. There are no manual handles by design.
  */
 export function defaultControls(
   source: FlowPoint,
@@ -98,14 +87,12 @@ export function buildFlowRibbon(
 ): FlowRibbon {
   const w = Math.max(2, width);
   const h = w / 2;
-  const { curvature = 0.5, controls } = options;
+  const { curvature = 0.5 } = options;
 
-  const auto = defaultControls(source, target, curvature);
-  const c1 = controls?.c1 ?? auto.c1;
-  const c2 = controls?.c2 ?? auto.c2;
+  const { c1, c2 } = defaultControls(source, target, curvature);
 
   // Vertical thickness: both boundaries share the anchor x, offset in y.
-  // Control handles shift with their boundary so custom bends keep their
+  // Control handles shift with their boundary so the band keeps its
   // shape while the end cuts stay exactly vertical.
   const sTop = { x: source.x, y: source.y - h };
   const sBot = { x: source.x, y: source.y + h };

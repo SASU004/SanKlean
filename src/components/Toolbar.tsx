@@ -1,12 +1,81 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppearanceStore, type FontChoice, type ThemeChoice } from '../state/appearanceStore';
 import { useDiagramStore } from '../state/diagramStore';
+import ShareButton from './ShareButton';
 
 /** Minimal top chrome (brand + diagram name) + floating Excalidraw-style tool dock. */
 type ClearPhase = 'idle' | 'waiting' | 'ready';
 const CLEAR_COUNTDOWN_SECONDS = 3;
 
-const SELECT_HELP_TEXT = 'Select individual elements or groups of elements for deletion.';
+const SELECT_HELP_TEXT = 'Select individual elements or groups of elements for sharing or deletion.';
+
+const TOOLTIP_GAP = 8;
+const TOOLTIP_MARGIN = 8;
+const TOOLTIP_FALLBACK_WIDTH = 190;
+const TOOLTIP_FALLBACK_HEIGHT = 32;
+
+/**
+ * Help tooltip for the Select tool, portaled to document.body so no
+ * toolbox ancestor (`.dock` / `.dock-panel` both clip overflow) can cut
+ * it off. Positioned fixed from the "?" anchor rect: to the right when
+ * it fits, otherwise flipped left, always clamped into the viewport.
+ */
+function SelectHelpTip({
+  anchorRef,
+  text,
+}: {
+  anchorRef: React.RefObject<HTMLSpanElement | null>;
+  text: string;
+}) {
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const r = anchor.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const tip = tipRef.current;
+      const tw = tip && tip.offsetWidth > 0 ? tip.offsetWidth : TOOLTIP_FALLBACK_WIDTH;
+      const th = tip && tip.offsetHeight > 0 ? tip.offsetHeight : TOOLTIP_FALLBACK_HEIGHT;
+      const anchorCy = r.top + r.height / 2;
+      const fitsRight = r.right + TOOLTIP_GAP + tw <= vw - TOOLTIP_MARGIN;
+      const left = fitsRight
+        ? r.right + TOOLTIP_GAP
+        : Math.max(TOOLTIP_MARGIN, r.left - TOOLTIP_GAP - tw);
+      const top = Math.min(
+        Math.max(anchorCy, TOOLTIP_MARGIN + th / 2),
+        Math.max(TOOLTIP_MARGIN + th / 2, vh - TOOLTIP_MARGIN - th / 2),
+      );
+      setPos((prev) => (prev && prev.left === left && prev.top === top ? prev : { left, top }));
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    window.visualViewport?.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      window.visualViewport?.removeEventListener('resize', place);
+    };
+  }, [anchorRef, text]);
+
+  return createPortal(
+    <div
+      ref={tipRef}
+      id="select-tool-tip"
+      role="tooltip"
+      className="dock-help-tip"
+      style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: 'hidden' }}
+    >
+      {text}
+    </div>,
+    document.body,
+  );
+}
 
 export default function Toolbar() {
   const name = useDiagramStore((s) => s.activeDiagram().name);
@@ -134,6 +203,11 @@ export default function Toolbar() {
     [],
   );
 
+  // Select "?" help tooltip (portaled outside the toolbox so it is never
+  // clipped). Open on hover or keyboard focus, closed on leave/blur/Escape.
+  const [selectTipOpen, setSelectTipOpen] = useState(false);
+  const selectHelpRef = useRef<HTMLSpanElement>(null);
+
   // While the dialog is open: focus Cancel for keyboard users, and let
   // Escape close it (the canvas Escape handler may also clear selection —
   // both are cancel/neutral actions, the diagram itself is preserved).
@@ -169,6 +243,7 @@ export default function Toolbar() {
             spellCheck={false}
           />
         </div>
+        <ShareButton />
       </header>
 
       <div className={`dock${panelOpen ? ' open' : ''}`}>
@@ -228,14 +303,25 @@ export default function Toolbar() {
                   <span>Select</span>
                 </button>
                 <span
+                  ref={selectHelpRef}
                   className="dock-help"
                   tabIndex={0}
                   role="note"
                   aria-label={SELECT_HELP_TEXT}
-                  data-tip={SELECT_HELP_TEXT}
+                  aria-describedby={selectTipOpen ? 'select-tool-tip' : undefined}
+                  onMouseEnter={() => setSelectTipOpen(true)}
+                  onMouseLeave={() => setSelectTipOpen(false)}
+                  onFocus={() => setSelectTipOpen(true)}
+                  onBlur={() => setSelectTipOpen(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setSelectTipOpen(false);
+                  }}
                 >
                   ?
                 </span>
+                {selectTipOpen && (
+                  <SelectHelpTip anchorRef={selectHelpRef} text={SELECT_HELP_TEXT} />
+                )}
               </div>
               <button
                 className="dock-btn primary"

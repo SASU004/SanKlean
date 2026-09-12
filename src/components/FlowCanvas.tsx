@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
   Controls,
-  NodeToolbar,
-  Position,
   ReactFlow,
   SelectionMode,
+  useInternalNode,
   useReactFlow,
+  useStore as useFlowStore,
+  useViewport,
   type Connection,
   type EdgeChange,
   type NodeChange,
@@ -23,13 +24,190 @@ import OnboardingHint from './OnboardingHint';
 const nodeTypes = { flowNode: FlowNode };
 const edgeTypes = { sankey: SankeyEdge };
 
+const TOOLBAR_GAP = 20;
+const VIEWPORT_MARGIN = 8;
+const FALLBACK_TOOLBAR_WIDTH = 264;
+const FALLBACK_TOOLBAR_HEIGHT = 36;
+
+/**
+ * Viewport-aware selected-node menu (Rename | Value | + Child | Delete).
+ *
+ * Underlying cause of the old bug: the menu was anchored with a fixed
+ * `position={Position.Bottom}` + `offset={20}`. React Flow converts the
+ * node's canvas coordinates to screen coordinates correctly on pan/zoom,
+ * but a fixed Bottom anchor can never stay in view: near the bottom edge
+ * it clips outside the viewport, near the top/edges it can cover the
+ * node's own label/value, and it never consults the menu's real size.
+ *
+ * This keeps the exact same buttons/design and instead positions an
+ * unscaled overlay in screen space:
+ * - flow -> screen via `flow * zoom + viewport` (correct under pan/zoom,
+ *   no hard-coded viewport size, no stale coordinates),
+ * - measured menu size via ResizeObserver (not fixed offsets),
+ * - prefer below, else above (flipped when the label lives on that side),
+ * - clamped left/right + top/bottom so it stays fully inside the viewport.
+ * It re-renders on viewport change (pan/zoom), node moves (internal node
+ * position), selection change, and resize — one unified implementation.
+ */
+function SelectedNodeToolbar() {
+  const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
+  const setEditingNode = useDiagramStore((s) => s.setEditingNode);
+  const addChild = useDiagramStore((s) => s.addChild);
+  const removeNode = useDiagramStore((s) => s.removeNode);
+  const internalNode = useInternalNode(selectedNodeId ?? '');
+  const viewport = useViewport();
+  const rfWidth = useFlowStore((s) => s.width);
+  const rfHeight = useFlowStore((s) => s.height);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarSize, setToolbarSize] = useState<{ w: number; h: number } | null>(null);
+
+  const isVisible =
+    selectedNodeIds.length === 1 && selectedNodeId !== null && internalNode !== null && internalNode !== undefined;
+
+  useLayoutEffect(() => {
+    if (!isVisible) return;
+    const el = toolbarRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setToolbarSize((prev) => {
+        if (prev && Math.abs(prev.w - rect.width) < 0.5 && Math.abs(prev.h - rect.height) < 0.5) return prev;
+        return { w: rect.width, h: rect.height };
+      });
+    };
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    return undefined;
+  }, [isVisible, selectedNodeId]);
+
+  const placement = useMemo(() => {
+    if (!internalNode) return null;
+    const nodeX = internalNode.internals.positionAbsolute.x;
+    const nodeY = internalNode.internals.positionAbsolute.y;
+    const nodeW = internalNode.measured?.width ?? 12;
+    const rawBarHeight: unknown = (internalNode.data as { barHeight?: unknown }).barHeight;
+    const nodeH =
+      internalNode.measured?.height ??
+      (typeof rawBarHeight === 'number' && Number.isFinite(rawBarHeight)
+        ? Math.min(260, Math.max(52, Math.round(rawBarHeight)))
+        : 52);
+    const labelSide: unknown = (internalNode.data as { labelSide?: unknown }).labelSide;
+
+    const toolbarW = toolbarSize?.w ?? FALLBACK_TOOLBAR_WIDTH;
+    const toolbarH = toolbarSize?.h ?? FALLBACK_TOOLBAR_HEIGHT;
+
+    const nodeScreenX = nodeX * viewport.zoom + viewport.x;
+    const nodeScreenY = nodeY * viewport.zoom + viewport.y;
+    const nodeScreenW = nodeW * viewport.zoom;
+    const nodeScreenH = nodeH * viewport.zoom;
+
+    const hasViewport =
+      typeof rfWidth === 'number' && typeof rfHeight === 'number' && rfWidth > 0 && rfHeight > 0;
+    const vpW = hasViewport ? rfWidth : 0;
+    const vpH = hasViewport ? rfHeight : 0;
+
+    const idealX = nodeScreenX + nodeScreenW / 2 - toolbarW / 2;
+    const clampX = (x: number): number => {
+      if (!hasViewport) return x;
+      return Math.min(Math.max(x, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, vpW - toolbarW - VIEWPORT_MARGIN));
+    };
+    const clampY = (y: number): number => {
+      if (!hasViewport) return y;
+      return Math.min(Math.max(y, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, vpH - toolbarH - VIEWPORT_MARGIN));
+    };
+
+    const yBelow = nodeScreenY + nodeScreenH + TOOLBAR_GAP;
+    const yAbove = nodeScreenY - TOOLBAR_GAP - toolbarH;
+
+    let placeAbove: boolean;
+    if (!hasViewport) {
+      placeAbove = labelSide === 'bottom';
+    } else {
+      const spaceBelow = vpH - (nodeScreenY + nodeScreenH + TOOLBAR_GAP) - VIEWPORT_MARGIN;
+      const spaceAbove = nodeScreenY - TOOLBAR_GAP - VIEWPORT_MARGIN;
+      const fitsBelow = spaceBelow >= toolbarH;
+      const fitsAbove = spaceAbove >= toolbarH;
+      if (labelSide === 'bottom') {
+        if (fitsAbove) placeAbove = true;
+        else if (fitsBelow) placeAbove = false;
+        else placeAbove = spaceAbove > spaceBelow;
+      } else if (labelSide === 'top') {
+        if (fitsBelow) placeAbove = false;
+        else if (fitsAbove) placeAbove = true;
+        else placeAbove = spaceAbove > spaceBelow;
+      } else if (fitsBelow) {
+        placeAbove = false;
+      } else if (fitsAbove) {
+        placeAbove = true;
+      } else {
+        placeAbove = spaceAbove > spaceBelow;
+      }
+    }
+
+    return { left: clampX(idealX), top: clampY(placeAbove ? yAbove : yBelow) };
+  }, [internalNode, viewport, rfWidth, rfHeight, toolbarSize]);
+
+  if (!isVisible || !internalNode || !placement || selectedNodeId === null) return null;
+
+  return (
+    <div
+      ref={toolbarRef}
+      className="node-toolbar nodrag nopan"
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      style={{ position: 'absolute', left: placement.left, top: placement.top, zIndex: 10 }}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditingNode(selectedNodeId, 'label');
+        }}
+        title="Edit name"
+      >
+        Rename
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditingNode(selectedNodeId, 'value');
+        }}
+        title="Edit value"
+      >
+        Value
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          addChild(selectedNodeId);
+        }}
+        title="Create a connected child node"
+      >
+        + Child
+      </button>
+      <button
+        className="danger"
+        onClick={(e) => {
+          e.stopPropagation();
+          removeNode(selectedNodeId);
+        }}
+        title="Delete node and its connections (Del)"
+      >
+        Delete
+      </button>
+    </div>
+  );
+}
+
 function CanvasInner() {
   const diagram = useDiagramStore((s) => s.activeDiagram());
   const addNode = useDiagramStore((s) => s.addNode);
-  const addChild = useDiagramStore((s) => s.addChild);
   const moveNode = useDiagramStore((s) => s.moveNode);
   const addConnection = useDiagramStore((s) => s.addConnection);
-  const removeNode = useDiagramStore((s) => s.removeNode);
   const removeNodes = useDiagramStore((s) => s.removeNodes);
   const removeConnections = useDiagramStore((s) => s.removeConnections);
   const deleteSelected = useDiagramStore((s) => s.deleteSelected);
@@ -38,8 +216,6 @@ function CanvasInner() {
   const setActiveTool = useDiagramStore((s) => s.setActiveTool);
   const isSelect = useDiagramStore((s) => s.activeTool === 'select');
   const isDark = useEffectiveTheme() === 'dark';
-  const setEditingNode = useDiagramStore((s) => s.setEditingNode);
-  const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
   const selectedNodeIds = useDiagramStore((s) => s.selectedNodeIds);
   const selectedConnectionIds = useDiagramStore((s) => s.selectedConnectionIds);
   const undo = useDiagramStore((s) => s.undo);
@@ -47,8 +223,8 @@ function CanvasInner() {
   const { screenToFlowPosition } = useReactFlow();
   // Hand is the primary/default tool: empty-canvas drag pans (infinite
   // whiteboard), while nodes/ribbons stay fully interactable — hover makes
-  // them selectable, click selects, node drag moves, ribbon control-point
-  // drag reshapes, Shift-click and Shift-drag marquee multi-select.
+  // them selectable, click selects, node drag moves (ribbons follow
+  // automatically), Shift-click and Shift-drag marquee multi-select.
   // Selector is secondary, for group deletion only: empty-canvas drag draws
   // a marquee rectangle instead of panning (click selects, Shift-click
   // toggles, empty click clears — all via the shared selection snapshot).
@@ -268,56 +444,7 @@ function CanvasInner() {
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color={isDark ? '#475569' : '#cbd5e1'} />
         <Controls showInteractive={false} />
-        <NodeToolbar
-          nodeId={selectedNodeId ?? undefined}
-          isVisible={selectedNodeIds.length === 1 && selectedNodeId !== null}
-          position={Position.Bottom}
-          offset={20}
-        >
-          <div
-            className="node-toolbar nodrag nopan"
-            onPointerDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (selectedNodeId) setEditingNode(selectedNodeId, 'label');
-              }}
-              title="Edit name"
-            >
-              Rename
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (selectedNodeId) setEditingNode(selectedNodeId, 'value');
-              }}
-              title="Edit value"
-            >
-              Value
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (selectedNodeId) addChild(selectedNodeId);
-              }}
-              title="Create a connected child node"
-            >
-              + Child
-            </button>
-            <button
-              className="danger"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (selectedNodeId) removeNode(selectedNodeId);
-              }}
-              title="Delete node and its connections (Del)"
-            >
-              Delete
-            </button>
-          </div>
-        </NodeToolbar>
+        <SelectedNodeToolbar />
       </ReactFlow>
       {isEmpty && <OnboardingHint />}
     </div>

@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { EdgeToolbar, useReactFlow, type EdgeProps } from '@xyflow/react';
+import { EdgeToolbar, type EdgeProps } from '@xyflow/react';
 import { edgeThickness, type RFEdge } from '../adapters/reactflow';
 import { parseBoundedIntInput } from '../domain/numbers';
-import { buildFlowRibbon, defaultControls } from './sankeyGeometry';
+import { buildFlowRibbon } from './sankeyGeometry';
 import { useDiagramStore } from '../state/diagramStore';
 
 const DEFAULT_COLOR = '#6366f1';
@@ -20,9 +20,10 @@ const DEFAULT_COLOR = '#6366f1';
  *   they never fully overlap; color is inherited from the source node
  *   (deterministic across reloads) at a moderate opacity so overlaps stay
  *   readable while node bars remain visually stronger.
- * - Selected edges render slightly stronger with a clearer outline and
- *   expose two draggable control points. Dragging stores absolute
- *   positions on the connection; absent = auto curve.
+ * - Selected edges render slightly stronger with a clearer outline.
+ * - Curves are always automatic: moving either endpoint node re-anchors
+ *   the ribbon and the Sankey curvature is re-derived. There are no
+ *   manual handles by design (V1 stays Sankey-focused).
  */
 export default function SankeyEdge({
   id,
@@ -35,7 +36,6 @@ export default function SankeyEdge({
 }: EdgeProps<RFEdge>) {
   const removeConnection = useDiagramStore((s) => s.removeConnection);
   const updateConnection = useDiagramStore((s) => s.updateConnection);
-  const { screenToFlowPosition } = useReactFlow();
 
   const value = data?.value ?? 1;
   // One-parent flows are derived from the child value: displayed read-only,
@@ -45,65 +45,15 @@ export default function SankeyEdge({
   // uniformly fitted to the canvas). Falls back to the absolute scale.
   const width = typeof data?.width === 'number' && Number.isFinite(data.width) ? data.width : edgeThickness(value);
   const color = data?.color ?? DEFAULT_COLOR;
-  const hasCustomCurve = data?.controlPoints !== undefined;
 
   const anchorS = { x: sourceX, y: sourceY + (data?.sourceDy ?? 0) };
   const anchorT = { x: targetX, y: targetY + (data?.targetDy ?? 0) };
-  const auto = useMemo(
-    () => defaultControls(anchorS, anchorT),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [anchorS.x, anchorS.y, anchorT.x, anchorT.y],
-  );
-  const stored = data?.controlPoints;
-  const c1 = stored?.[0] ?? auto.c1;
-  const c2 = stored?.[1] ?? auto.c2;
 
   const flow = useMemo(
-    () => buildFlowRibbon(anchorS, anchorT, width, { controls: { c1, c2 } }),
+    () => buildFlowRibbon(anchorS, anchorT, width),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [anchorS.x, anchorS.y, anchorT.x, anchorT.y, width, c1.x, c1.y, c2.x, c2.y],
+    [anchorS.x, anchorS.y, anchorT.x, anchorT.y, width],
   );
-
-  // Control-point dragging: pointer capture keeps the move stream on the
-  // handle; each move writes absolute canvas coords to the connection,
-  // which re-renders the ribbon live and autosaves via persist.
-  // setPointerCapture can throw (e.g. a released/foreign pointerId in some
-  // browsers), so capture is best-effort — dragging still works via the
-  // move stream without it.
-  const draggingHandle = useRef<0 | 1 | null>(null);
-
-  const onControlDown = (e: React.PointerEvent<SVGCircleElement>, index: 0 | 1) => {
-    e.stopPropagation();
-    e.preventDefault();
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Capture unavailable — the pointermove handler still tracks the drag.
-    }
-    draggingHandle.current = index;
-  };
-
-  const onControlMove = (e: React.PointerEvent<SVGCircleElement>) => {
-    const index = draggingHandle.current;
-    if (index === null) return;
-    e.stopPropagation();
-    const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    const next = index === 0 ? [{ ...p }, { ...c2 }] : [{ ...c1 }, { ...p }];
-    updateConnection(id, { controlPoints: next as [{ x: number; y: number }, { x: number; y: number }] });
-  };
-
-  const onControlUp = (e: React.PointerEvent<SVGCircleElement>) => {
-    e.stopPropagation();
-    try {
-      // Guarded: hasPointerCapture itself may be absent on older browsers.
-      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {
-      // Release failure is harmless — the drag state below still resets.
-    }
-    draggingHandle.current = null;
-  };
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -168,40 +118,6 @@ export default function SankeyEdge({
         strokeLinejoin="miter"
         strokeLinecap="butt"
       />
-      {selected && (
-        <g>
-          {[c1, c2].map((p, i) => (
-            // Two-layer handle: a wide invisible touch target (easy to grab
-            // on phones — the visible 7px dot alone is far below a reliable
-            // tap size) overlaid with the visible dot, which ignores pointer
-            // events so it never blocks its own hit area.
-            <g key={i}>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={18}
-                fill="transparent"
-                className="nodrag nopan"
-                style={{ cursor: 'grab', touchAction: 'none' }}
-                onPointerDown={(e) => onControlDown(e, i === 0 ? 0 : 1)}
-                onPointerMove={onControlMove}
-                onPointerUp={onControlUp}
-                onPointerCancel={onControlUp}
-                onLostPointerCapture={onControlUp}
-              >
-                <title>{i === 0 ? 'Drag to reshape (source side)' : 'Drag to reshape (target side)'}</title>
-              </circle>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={7}
-                className="flow-control-point nodrag nopan"
-                style={{ pointerEvents: 'none' }}
-              />
-            </g>
-          ))}
-        </g>
-      )}
       <EdgeToolbar edgeId={id} x={flow.labelX} y={flow.labelY} isVisible={selected === true}>
         <div
           className="edge-toolbar nodrag nopan"
@@ -243,19 +159,6 @@ export default function SankeyEdge({
               title="Click to edit flow value"
             >
               {value}
-            </button>
-          )}
-          {hasCustomCurve && !editing && (
-            <button
-              className="edge-reset-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                updateConnection(id, { controlPoints: null });
-              }}
-              title="Reset curve to automatic"
-              aria-label="Reset curve"
-            >
-              ↺
             </button>
           )}
           <button

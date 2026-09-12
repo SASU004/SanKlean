@@ -45,32 +45,7 @@ export interface FlowConnection {
    * editable places.
    */
   value: number;
-  /**
-   * User-customized curve handles, stored as absolute canvas positions.
-   * Absent = auto curve derived from the current node positions.
-   * Absolute storage means dragging a node re-anchors the endpoints while
-   * the handles stay put, preserving the user's bend as much as possible.
-   */
-  controlPoints?: [ControlPoint, ControlPoint];
   createdAt: number;
-}
-
-/** A bezier control handle position. Plain data — canvas coordinates. */
-export interface ControlPoint {
-  x: number;
-  y: number;
-}
-
-/** Type guard for user-supplied curve data (persisted JSON is untrusted). */
-export function isControlPointPair(raw: unknown): raw is [ControlPoint, ControlPoint] {
-  if (!Array.isArray(raw) || raw.length !== 2) return false;
-  return raw.every(
-    (p) =>
-      typeof p === 'object' &&
-      p !== null &&
-      Number.isFinite((p as { x?: unknown }).x) &&
-      Number.isFinite((p as { y?: unknown }).y),
-  );
 }
 
 export interface NodePosition {
@@ -308,11 +283,13 @@ export function normalizeDiagram(diagram: Diagram): Diagram {
       changed = true;
       next = { ...next, value };
     }
-    if (next.controlPoints !== undefined && !isControlPointPair(next.controlPoints)) {
+    // V1 curves are always automatic: drop any legacy manual handles so
+    // old diagrams revert to the auto curve.
+    if ((next as unknown as Record<string, unknown>).controlPoints !== undefined) {
       changed = true;
-      const copy = { ...next };
+      const copy = { ...(next as unknown as Record<string, unknown>) };
       delete copy.controlPoints;
-      return copy;
+      return copy as unknown as typeof c;
     }
     return next;
   });
@@ -393,9 +370,7 @@ export function sanitizePersistedDiagram(raw: unknown): Diagram | null {
           : Date.now(),
     };
     if (typeof c.label === 'string' && c.label.length > 0) conn.label = c.label;
-    if (isControlPointPair(c.controlPoints)) {
-      conn.controlPoints = [{ ...c.controlPoints[0] }, { ...c.controlPoints[1] }];
-    }
+    // Legacy manual curve handles are intentionally dropped: V1 is auto-curve only.
     connections.push(conn);
   }
 
